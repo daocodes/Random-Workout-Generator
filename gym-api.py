@@ -4,6 +4,7 @@ from collections import defaultdict
 import requests
 
 
+# This method is in charge of giving a certain amount of sets and reps depedning on the muscle group
 def suggest_reps(muscle):
     muscle = muscle.lower()
     if muscle in [
@@ -24,20 +25,13 @@ def suggest_reps(muscle):
         return "3 sets of 8–12 reps"
 
 
-# Helper: get muscle name → ID mapping
-def get_muscle_name_to_id():
-    url = "https://wger.de/api/v2/muscle/"
-    response = requests.get(url)
-    data = response.json()
-    return {muscle["name"].lower(): muscle["id"] for muscle in data["results"]}
-
-
+# This function will use a dictionary in order to find the common names for these muscles, so that the other functions can work with it
 def informalizeMuscleNames():
-    url = "https://wger.de/api/v2/muscle/"
+    url = "https://wger.de/api/v2/muscle/"  # Draws from this API link
     response = requests.get(url)
     data = response.json()
 
-    informal_map = {
+    informal_map = {  # Muscle map dictionary that will informalize the names
         "biceps brachii": "biceps",
         "triceps brachii": "triceps",
         "pectoralis major": "chest",
@@ -56,7 +50,7 @@ def informalizeMuscleNames():
         "brachialis": "inner biceps",
     }
 
-    result = {}
+    result = {}  # this draws from the API
     for muscle in data["results"]:
         formal = muscle["name_en"].lower()
         informal = informal_map.get(formal, formal)
@@ -65,13 +59,12 @@ def informalizeMuscleNames():
     return result
 
 
-# Your original structure, cleaned up
+# This function will draw all of the exercises from the API that correlate with the muscle name input
 def allWorkoutsPerMuscle(muscleName):
     listOfWorkouts = []
-    url = "https://wger.de/api/v2/exerciseinfo/?language=2&limit=100"
+    url = "https://wger.de/api/v2/exerciseinfo/?language=2&limit=100"  # Draws from this API link
 
-    # normalize muscle name to lowercase
-    muscle_map = informalizeMuscleNames()
+    muscle_map = informalizeMuscleNames()  # calls one of the previous functions
     muscleName = muscleName.lower()
 
     if muscleName not in muscle_map:
@@ -85,18 +78,19 @@ def allWorkoutsPerMuscle(muscleName):
         data = response.json()
         for exercise in data["results"]:
 
-            # print(exercise["name"])
             for muscle in exercise["muscles"]:
                 if muscle["id"] == target_id:
-                    listOfWorkouts.append(exercise)
-                    break  # avoid duplicates if multiple muscles match
+                    listOfWorkouts.append(
+                        exercise
+                    )  # Creates and adds to an array with all of the different exercises that correlate with the muscle
+                    break
 
         url = data["next"]
 
     return listOfWorkouts
-    # print()
 
 
+# This function gives additional names to the traditional exerises, and it also decomposes muscle groups
 def expand_muscle_groups(muscle_groups):
     muscles = []
     for group in muscle_groups:
@@ -139,13 +133,13 @@ def expand_muscle_groups(muscle_groups):
         else:
             muscles.append(group)
 
-    return set(muscles)
+    return set(muscles)  # This ensures that there are no duplicates
 
 
 def workoutMaker(workoutList, muscleList):
-    listOfExercises = []
-    used_ids = set()
-    muscle_to_exercises = defaultdict(list)
+    listOfExercises = []  # Stores the selected exercises
+    used_ids = set()  # Keeps track of used exercise IDs to avoid duplicates
+    muscle_to_exercises = defaultdict(list)  # Maps each muscle to a list of exercises
 
     # Categorize exercises by primary muscle group
     for workout in workoutList:
@@ -153,7 +147,7 @@ def workoutMaker(workoutList, muscleList):
             if muscle["name_en"].lower() in [m.lower() for m in muscleList]:
                 muscle_to_exercises[muscle["name_en"].lower()].append(workout)
 
-    # Determine target number of exercises
+    # Determine total number of exercises based on how many muscles are being targeted
     total_muscles = len(muscleList)
     total_exercises = 8 if total_muscles >= 4 else 6
 
@@ -161,15 +155,15 @@ def workoutMaker(workoutList, muscleList):
     for muscle in muscleList:
         key = muscle.lower()
         options = [w for w in muscle_to_exercises[key] if w["id"] not in used_ids]
-        random.shuffle(options)
-        selected = options[:2]  # Get up to 2 per muscle group
+        random.shuffle(options)  # Shuffle to randomize selection
+        selected = options[:2]  # Pick up to 2 exercises per muscle
 
         for w in selected:
             if len(listOfExercises) < total_exercises:
                 listOfExercises.append(w)
                 used_ids.add(w["id"])
 
-    # Fill remaining slots randomly with matching exercises
+    # Fill the rest of the workout slots with random exercises (no repeats)
     all_valid = [
         w
         for m in muscleList
@@ -183,18 +177,19 @@ def workoutMaker(workoutList, muscleList):
         listOfExercises.append(w)
         used_ids.add(w["id"])
 
+    # Output the exercise names
     print("\nHere's your randomly generated workout:")
-
     for w in listOfExercises:
         print(f"- {get_english_name(w)}")
     return listOfExercises
 
 
 def get_english_name(w):
+    # Returns the English name of an exercise from its translation data
     for t in w.get("translations", []):
         if t.get("language") == 2:
             return t.get("name")
-    return "Unknown Name"
+    return "Unknown Name"  # Fallback if name not found
 
 
 def getDescription(exercise_data):
@@ -212,74 +207,52 @@ def getDescription(exercise_data):
 
 
 def generateRandomWorkout():
-    listOfRoutines = [
-        "Arms",
-        "Legs",
-        "Back",
-        "Chest",
-        "Shoulders",
-        "Core",
-        "Biceps",
-        "Triceps",
-        "Quads",
-        "Hamstrings",
-        "Glutes",
-        "Calves",
-        "Lats",
-        "Traps",
-        "Delts",
-        "Obliques",
-        "Upper Body",
-        "Lower Body",
-        "Chest and Back",
-        "Shoulders and Arms",
-        "Push",
-        "Pull",
-        "Full Body",
-        "Cardio",
-        "Chest-Only",
-        "Back-Only",
-        "Quad-Focused Legs",
-        "Hamstring-Focused Legs",
-        "Glute-Focused Legs",
-        "Core-Only",
-    ]
+    # Main function that prompts the user and creates the final workout routine
 
-    muscle_map = informalizeMuscleNames()
+    muscle_map = informalizeMuscleNames()  # Get informal muscle names + their IDs
 
+    # Ask the user what muscle groups they want to train
     muscleGroups = input(
         "What muscle groups are you looking to work on? (Seperate them by a space)"
     ).lower()
+
     if not muscleGroups:
         print("Please enter at least one muscle group.")
         return
-    workoutList = []
 
+    workoutList = []  # Will store all exercises collected from API
+
+    # Expands compound group names into individual muscles (e.g., "arms" → biceps, triceps, etc.)
     muscleArray = expand_muscle_groups(muscleGroups.split())
 
+    # Retrieve exercises per muscle
     for i in muscleArray:
         i = i.lower()
         if i in muscle_map:
             print("Looking up workouts for:", i)
             workouts = allWorkoutsPerMuscle(i)
             workoutList.extend(workouts)
-        #  for workout in workouts:
-        #      workout_name = workout.get("name")
-        #     workoutList.append(workout_name)
 
+    # If no exercises found, exit early
     if len(workoutList) == 0:
         print(
-            "Sorry! We didn't recognize any muscles or groups that you picked. Try again!"
+            "Sorry! We didn't recognize any muscles or groups that you picked. Enter through the prompts and run the code again!"
         )
     else:
         print("Found", len(workoutList), "total exercises.")
 
+    # Pause for confirmation
     buffer = input("Would you like to continue? (Enter anything)")
+
+    # Generate and display the actual workout routine
     exerciseArray = workoutMaker(workoutList, muscleArray)
+
+    # Ask user if they want exercise explanations
     decision = (
         input("Do you need help performing these exercises? (Y/N) ").strip().lower()
     )
 
+    # If yes, give name, description, and rep suggestion for each exercise
     if decision in ("y", "yes"):
         for i, e in enumerate(exerciseArray, start=1):
             name = get_english_name(e)
@@ -288,6 +261,7 @@ def generateRandomWorkout():
             reps = suggest_reps(muscles[0]) if muscles else "3 sets of 8–12 reps"
             print(f"{i}. {name}:\n   {desc}\n   Recommended: {reps}\n")
 
+    # Estimate duration: assume ~10 minutes per exercise
     duration = len(exerciseArray) * 10
     print("Workout Duration Estimate:", duration, "minutes")
 
